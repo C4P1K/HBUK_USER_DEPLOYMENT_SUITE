@@ -1,5 +1,5 @@
 # ==============================================================================
-# HBUK USER DEPLOYMENT SUITE V4.4
+# HBUK USER DEPLOYMENT SUITE V4.5
 # ==============================================================================
 
 # --- ADMIN PRIVILEGE CHECK ---
@@ -24,7 +24,7 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 # --- FORM SETUP ---
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "HBUK User Deployment Suite V4.4"
+$form.Text = "HBUK User Deployment Suite V4.5"
 $form.Size = New-Object System.Drawing.Size(1050, 750)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -62,6 +62,53 @@ if (Test-Path $accentCfg) {
             [Convert]::ToInt32($h.Substring(2,2),16),
             [Convert]::ToInt32($h.Substring(4,2),16))
     }
+}
+
+# --- DARK / LIGHT MODE (F-10) ---
+$script:IsDarkMode = $false
+function Set-UITheme {
+    if ($script:IsDarkMode) {
+        $bgMain = [System.Drawing.Color]::FromArgb(30, 30, 30)
+        $bgPanel = [System.Drawing.Color]::FromArgb(40, 40, 40)
+        $fgText = [System.Drawing.Color]::White
+        $bgBtn = [System.Drawing.Color]::FromArgb(55, 55, 55)
+        $fgBtn = [System.Drawing.Color]::White
+        $bgLog = [System.Drawing.Color]::FromArgb(20, 20, 20)
+        $fgLog = [System.Drawing.Color]::LimeGreen
+    } else {
+        $bgMain = [System.Drawing.Color]::White
+        $bgPanel = [System.Drawing.Color]::White
+        $fgText = [System.Drawing.Color]::Black
+        $bgBtn = [System.Drawing.Color]::FromArgb(240, 240, 240)
+        $fgBtn = [System.Drawing.Color]::Black
+        $bgLog = [System.Drawing.Color]::FromArgb(30, 30, 30)
+        $fgLog = [System.Drawing.Color]::LimeGreen
+    }
+    $form.BackColor = $bgMain
+    $panelContent.BackColor = $bgPanel
+    $lblLogTitle.ForeColor = $fgText
+    $script:rtbLog.BackColor = $bgLog
+    $script:rtbLog.ForeColor = $fgLog
+    # Rekursif kemaskini semua panel dan kawalan
+    foreach ($panel in @($panelMainMenu, $panelSPAI, $panelRustDesk, $panelUser)) {
+        if ($panel) {
+            $panel.BackColor = $bgPanel
+            foreach ($ctrl in $panel.Controls) {
+                if ($ctrl -is [System.Windows.Forms.Button]) { $ctrl.BackColor = $bgBtn; $ctrl.ForeColor = $fgBtn }
+                elseif ($ctrl -is [System.Windows.Forms.Label]) { $ctrl.ForeColor = $fgText }
+                elseif ($ctrl -is [System.Windows.Forms.Panel]) {
+                    $ctrl.BackColor = $bgPanel
+                    foreach ($subCtrl in $ctrl.Controls) {
+                        if ($subCtrl -is [System.Windows.Forms.Button]) { $subCtrl.BackColor = $bgBtn; $subCtrl.ForeColor = $fgBtn }
+                        elseif ($subCtrl -is [System.Windows.Forms.Label]) { $subCtrl.ForeColor = $fgText }
+                    }
+                }
+            }
+        }
+    }
+    # Butang tema khas (SPAI hijau) kekalkan warna asal
+    if ($btnPasangSPAI) { $btnPasangSPAI.BackColor = [System.Drawing.Color]::FromArgb(27, 174, 112); $btnPasangSPAI.ForeColor = [System.Drawing.Color]::White }
+    if ($btnManPasangSPAI) { $btnManPasangSPAI.BackColor = [System.Drawing.Color]::FromArgb(27, 174, 112); $btnManPasangSPAI.ForeColor = [System.Drawing.Color]::White }
 }
 
 # --- ANIMATED TOAST NOTIFICATION ---
@@ -293,6 +340,22 @@ $btnRefreshInfo.ForeColor = [System.Drawing.Color]::White
 $btnRefreshInfo.Add_Click({ Update-SystemInfo })
 $panelLeft.Controls.Add($btnRefreshInfo)
 
+# --- BUTANG TEMA GELAP/TERANG (F-10) ---
+$btnThemeToggle = New-Object System.Windows.Forms.Button
+$btnThemeToggle.Text = [char]0x263D + " Dark Mode"
+$btnThemeToggle.Location = New-Object System.Drawing.Point(20, 695)
+$btnThemeToggle.Size = New-Object System.Drawing.Size(280, 30)
+$btnThemeToggle.FlatStyle = "Flat"
+$btnThemeToggle.ForeColor = [System.Drawing.Color]::White
+$btnThemeToggle.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$btnThemeToggle.Add_Click({
+    $script:IsDarkMode = -not $script:IsDarkMode
+    if ($script:IsDarkMode) { $btnThemeToggle.Text = [char]0x2600 + " Light Mode" }
+    else { $btnThemeToggle.Text = [char]0x263D + " Dark Mode" }
+    Set-UITheme
+})
+$panelLeft.Controls.Add($btnThemeToggle)
+
 # --- AUTO-REFRESH TIMER (F-13) ---
 # Refresh maklumat sistem setiap 60 saat secara automatik
 $script:autoRefreshTimer = New-Object System.Windows.Forms.Timer
@@ -474,7 +537,7 @@ $btnMenu6.Add_Click({
         $lblAboutTitle.AutoSize = $true
         $aboutDlg.Controls.Add($lblAboutTitle)
         $lblAboutInfo = New-Object System.Windows.Forms.Label
-        $lblAboutInfo.Text = "Versi: V4.4`nTarikh Bina: $(Get-Date -Format 'yyyy-MM-dd')`n`nUnit Pengurusan Maklumat (UPM)`nHospital Bahagia Ulu Kinta`nJKN Perak, KKM`n`nDibangunkan untuk pengurusan deployment`nkomputer hospital secara portable."
+        $lblAboutInfo.Text = "Versi: V4.5`nTarikh Bina: $(Get-Date -Format 'yyyy-MM-dd')`n`nUnit Pengurusan Maklumat (UPM)`nHospital Bahagia Ulu Kinta`nJKN Perak, KKM`n`nDibangunkan untuk pengurusan deployment`nkomputer hospital secara portable."
         $lblAboutInfo.Font = New-Object System.Drawing.Font("Segoe UI", 10)
         $lblAboutInfo.ForeColor = [System.Drawing.Color]::White
         $lblAboutInfo.Location = New-Object System.Drawing.Point(30, 60)
@@ -1947,7 +2010,7 @@ $btnBackUser.BringToFront()
 # Show initial state
 Show-Panel $panelMainMenu
 Update-SystemInfo
-Write-Log "HBUK User Deployment Suite V4.4 dimulakan."
+Write-Log "HBUK User Deployment Suite V4.5 dimulakan."
 Write-Log "Hostname: $env:COMPUTERNAME | Log: $script:LogFile"
 
 $form.Add_FormClosed({ $script:autoRefreshTimer.Stop(); $script:autoRefreshTimer.Dispose() })
