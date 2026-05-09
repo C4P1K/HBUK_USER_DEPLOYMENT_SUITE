@@ -15,10 +15,10 @@ namespace HBUKLauncher
         static void Main(string[] args)
         {
             string appDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            string ps1Path = Path.Combine(appDir, "HBUK_Deployment_GUI.ps1");
+            string ps1Path = Path.Combine(appDir, "HBUK_USER_DEPLOYMENT_SUITE_V4.3.ps1");
             
             if (!File.Exists(ps1Path)) {
-                System.Windows.Forms.MessageBox.Show("Fail 'HBUK_Deployment_GUI.ps1' tidak dijumpai di dalam folder ini.", "Ralat", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                System.Windows.Forms.MessageBox.Show("Fail 'HBUK_USER_DEPLOYMENT_SUITE_V4.3.ps1' tidak dijumpai di dalam folder ini.", "Ralat", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
                 return;
             }
 

@@ -1,5 +1,5 @@
 @echo off
-:: Ini adalah fail 'Launcher' supaya PowerShell tidak disekat (Execution Policy Bypass)
-:: -WindowStyle Hidden akan menyorokkan tetingkap biru PowerShell di belakang.
-
-powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0HBUK_Deployment_GUI.ps1"
+:: HBUK USER DEPLOYMENT SUITE — Launcher
+:: Fail ini melancarkan skrip utama tanpa tetingkap PowerShell biru.
+:: Guna HBUK_GUI_Launcher.vbs untuk lancar tanpa tetingkap CMD sama sekali.
+powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0HBUK_USER_DEPLOYMENT_SUITE_V4.3.ps1"
