@@ -1,5 +1,5 @@
 # ==============================================================================
-# HBUK USER DEPLOYMENT SUITE V4.3
+# HBUK USER DEPLOYMENT SUITE V4.4
 # ==============================================================================
 
 # --- ADMIN PRIVILEGE CHECK ---
@@ -24,7 +24,7 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 # --- FORM SETUP ---
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "HBUK User Deployment Suite V4.3"
+$form.Text = "HBUK User Deployment Suite V4.4"
 $form.Size = New-Object System.Drawing.Size(1050, 750)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -257,6 +257,15 @@ function Update-SystemInfo {
     $rdMsiVer = if ($localRdMsi -and ([System.IO.Path]::GetFileName($localRdMsi.FullName)) -match "(\d+\.\d+\.\d+)") { $matches[1] } else { "Tiada" }
     $spaiMsiVer = if ($localSpaiMsi -and ([System.IO.Path]::GetFileName($localSpaiMsi.FullName)) -match "(\d+\.\d+)") { $matches[1] } else { "Tiada" }
     
+    # Perbandingan versi dipasang vs MSI tersedia (F-06)
+    $rdVerCompare = ""
+    if ($rdVer -ne "N/A" -and $rdMsiVer -ne "Tiada") {
+        try {
+            if ([version]$rdMsiVer -gt [version]$rdVer) { $rdVerCompare = " [KEMASKINI TERSEDIA]" }
+            elseif ([version]$rdMsiVer -eq [version]$rdVer) { $rdVerCompare = " [TERKINI]" }
+        } catch {}
+    }
+
     $rtbInfo.Text = "MAKLUMAT SISTEM`n" +
     "------------------------`n" +
     "HOSTNAME:`n  $env:COMPUTERNAME`n`n" +
@@ -267,7 +276,7 @@ function Update-SystemInfo {
     "Tag    : $spaiTag`n`n" +
     "--- RUSTDESK ---`n" +
     "Status : $rdStatus`n" +
-    "Versi  : $rdVer`n" +
+    "Versi  : $rdVer$rdVerCompare`n" +
     "ID     : $rdId`n" +
     "Server : $rdIp`n`n" +
     "--- PAKEJ OFFLINE ---`n" +
@@ -283,6 +292,14 @@ $btnRefreshInfo.FlatStyle = "Flat"
 $btnRefreshInfo.ForeColor = [System.Drawing.Color]::White
 $btnRefreshInfo.Add_Click({ Update-SystemInfo })
 $panelLeft.Controls.Add($btnRefreshInfo)
+
+# --- AUTO-REFRESH TIMER (F-13) ---
+# Refresh maklumat sistem setiap 60 saat secara automatik
+$script:autoRefreshTimer = New-Object System.Windows.Forms.Timer
+$script:autoRefreshTimer.Interval = 60000
+$script:autoRefreshTimer.Add_Tick({ Update-SystemInfo })
+$script:autoRefreshTimer.Start()
+
 $form.Controls.Add($panelLeft)
 
 # --- RIGHT CONTENT PANEL (top: panels, bottom: status log) ---
@@ -439,8 +456,43 @@ $btnMenu5.Add_Click({
         [System.Windows.Forms.MessageBox]::Show("Housekeeping Selesai!`nJumlah ~$totalCleaned fail dibersihkan.", "Berjaya", 0, 64)
     })
 
-$btnMenu6 = New-MainMenuButton "6. Keluar" 330
-$btnMenu6.Add_Click({ $form.Close() })
+$btnMenu6 = New-MainMenuButton "6. Tentang / About" 330
+$btnMenu6.Add_Click({
+        # Dialog About (F-12)
+        $aboutDlg = New-Object System.Windows.Forms.Form
+        $aboutDlg.Text = "Tentang HBUK Suite"
+        $aboutDlg.Size = New-Object System.Drawing.Size(420, 300)
+        $aboutDlg.StartPosition = "CenterParent"
+        $aboutDlg.FormBorderStyle = "FixedDialog"
+        $aboutDlg.MaximizeBox = $false; $aboutDlg.MinimizeBox = $false
+        $aboutDlg.BackColor = [System.Drawing.Color]::FromArgb(44, 62, 80)
+        $lblAboutTitle = New-Object System.Windows.Forms.Label
+        $lblAboutTitle.Text = "HBUK USER DEPLOYMENT SUITE"
+        $lblAboutTitle.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+        $lblAboutTitle.ForeColor = [System.Drawing.Color]::White
+        $lblAboutTitle.Location = New-Object System.Drawing.Point(30, 25)
+        $lblAboutTitle.AutoSize = $true
+        $aboutDlg.Controls.Add($lblAboutTitle)
+        $lblAboutInfo = New-Object System.Windows.Forms.Label
+        $lblAboutInfo.Text = "Versi: V4.4`nTarikh Bina: $(Get-Date -Format 'yyyy-MM-dd')`n`nUnit Pengurusan Maklumat (UPM)`nHospital Bahagia Ulu Kinta`nJKN Perak, KKM`n`nDibangunkan untuk pengurusan deployment`nkomputer hospital secara portable."
+        $lblAboutInfo.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+        $lblAboutInfo.ForeColor = [System.Drawing.Color]::White
+        $lblAboutInfo.Location = New-Object System.Drawing.Point(30, 60)
+        $lblAboutInfo.AutoSize = $true
+        $aboutDlg.Controls.Add($lblAboutInfo)
+        $btnAboutOk = New-Object System.Windows.Forms.Button
+        $btnAboutOk.Text = "Tutup"
+        $btnAboutOk.Location = New-Object System.Drawing.Point(150, 225)
+        $btnAboutOk.Size = New-Object System.Drawing.Size(120, 30)
+        $btnAboutOk.FlatStyle = "Flat"
+        $btnAboutOk.ForeColor = [System.Drawing.Color]::White
+        $btnAboutOk.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $aboutDlg.Controls.Add($btnAboutOk)
+        $aboutDlg.ShowDialog() | Out-Null
+    })
+
+$btnMenu7 = New-MainMenuButton "7. Keluar" 380
+$btnMenu7.Add_Click({ $form.Close() })
 
 
 # -------------------------------------------------------------
@@ -913,6 +965,9 @@ $btnPasangSPAI.Add_Click({
         [System.Windows.Forms.MessageBox]::Show("Sila masukkan Gred Jawatan!", "Peringatan", 0, [System.Windows.Forms.MessageBoxIcon]::Warning)
         return
     }
+    # Simpan tag terakhir untuk sejarah (F-07)
+    $tagHistoryFile = Join-Path $env:HBUK_BASE_DIR "packages\config\spai_tag_history.txt"
+    try { Add-Content -Path $tagHistoryFile -Value $txtPreview.Text -ErrorAction SilentlyContinue } catch {}
     Install-SPAIWithTag $txtPreview.Text
 })
 
@@ -1892,17 +1947,8 @@ $btnBackUser.BringToFront()
 # Show initial state
 Show-Panel $panelMainMenu
 Update-SystemInfo
-Write-Log "HBUK User Deployment Suite V4.3 dimulakan."
+Write-Log "HBUK User Deployment Suite V4.4 dimulakan."
 Write-Log "Hostname: $env:COMPUTERNAME | Log: $script:LogFile"
 
+$form.Add_FormClosed({ $script:autoRefreshTimer.Stop(); $script:autoRefreshTimer.Dispose() })
 $form.ShowDialog() | Out-Null
-
-
-
-
-
-
-
-
-
-
