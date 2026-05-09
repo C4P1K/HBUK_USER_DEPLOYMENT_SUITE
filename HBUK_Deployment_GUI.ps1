@@ -1,5 +1,5 @@
 # ==============================================================================
-# HBUK USER DEPLOYMENT SUITE V4.1
+# HBUK USER DEPLOYMENT SUITE V4.2
 # ==============================================================================
 
 # --- ADMIN PRIVILEGE CHECK ---
@@ -24,7 +24,7 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 # --- FORM SETUP ---
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "HBUK User Deployment Suite V4.1"
+$form.Text = "HBUK User Deployment Suite V4.2"
 $form.Size = New-Object System.Drawing.Size(1050, 750)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -49,6 +49,72 @@ function Write-Log($msg) {
     }
 }
 
+# --- ACCENT COLOR (dari config atau default) ---
+# Fail konfigurasi: packages/config/accent_color.txt (satu baris hex, cth: #1ABC9C)
+$script:AccentColor = [System.Drawing.Color]::FromArgb(27, 174, 112)
+$accentCfg = Join-Path $env:HBUK_BASE_DIR "packages\config\accent_color.txt"
+if (Test-Path $accentCfg) {
+    $hexVal = (Get-Content $accentCfg -First 1).Trim()
+    if ($hexVal -match '^#?([0-9A-Fa-f]{6})$') {
+        $h = $matches[1]
+        $script:AccentColor = [System.Drawing.Color]::FromArgb(
+            [Convert]::ToInt32($h.Substring(0,2),16),
+            [Convert]::ToInt32($h.Substring(2,2),16),
+            [Convert]::ToInt32($h.Substring(4,2),16))
+    }
+}
+
+# --- ANIMATED TOAST NOTIFICATION ---
+# Popup notifikasi berjaya dengan animasi fade-in/out
+function Show-ToastNotification($message, $title, $durationMs) {
+    if (-not $durationMs) { $durationMs = 2500 }
+    $toast = New-Object System.Windows.Forms.Form
+    $toast.FormBorderStyle = 'None'
+    $toast.StartPosition = 'Manual'
+    $toast.Size = New-Object System.Drawing.Size(380, 90)
+    $toast.BackColor = $script:AccentColor
+    $toast.TopMost = $true
+    $toast.ShowInTaskbar = $false
+    $toast.Opacity = 0
+    # Letak di bawah kanan skrin
+    $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $toast.Location = New-Object System.Drawing.Point(($screen.Right - 395), ($screen.Bottom - 105))
+    # Ikon tanda semak
+    $lblIcon = New-Object System.Windows.Forms.Label
+    $lblIcon.Text = [char]0x2714
+    $lblIcon.Font = New-Object System.Drawing.Font('Segoe UI', 24)
+    $lblIcon.ForeColor = [System.Drawing.Color]::White
+    $lblIcon.Location = New-Object System.Drawing.Point(12, 18)
+    $lblIcon.AutoSize = $true
+    $toast.Controls.Add($lblIcon)
+    # Tajuk
+    $lblT = New-Object System.Windows.Forms.Label
+    $lblT.Text = $title
+    $lblT.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
+    $lblT.ForeColor = [System.Drawing.Color]::White
+    $lblT.Location = New-Object System.Drawing.Point(55, 12)
+    $lblT.AutoSize = $true
+    $toast.Controls.Add($lblT)
+    # Mesej
+    $lblM = New-Object System.Windows.Forms.Label
+    $lblM.Text = $message
+    $lblM.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $lblM.ForeColor = [System.Drawing.Color]::White
+    $lblM.Location = New-Object System.Drawing.Point(55, 38)
+    $lblM.MaximumSize = New-Object System.Drawing.Size(310, 45)
+    $lblM.AutoSize = $true
+    $toast.Controls.Add($lblM)
+    $toast.Show()
+    # Animasi fade-in
+    for ($i = 0; $i -le 10; $i++) { $toast.Opacity = $i / 10; Start-Sleep -Milliseconds 30; [System.Windows.Forms.Application]::DoEvents() }
+    # Tahan paparan
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.ElapsedMilliseconds -lt $durationMs) { Start-Sleep -Milliseconds 50; [System.Windows.Forms.Application]::DoEvents() }
+    # Animasi fade-out
+    for ($i = 10; $i -ge 0; $i--) { $toast.Opacity = $i / 10; Start-Sleep -Milliseconds 30; [System.Windows.Forms.Application]::DoEvents() }
+    $toast.Close(); $toast.Dispose()
+}
+
 # --- LEFT INFO PANEL (PERMANENT) ---
 $panelLeft = New-Object System.Windows.Forms.Panel
 $panelLeft.Size = New-Object System.Drawing.Size(320, 750)
@@ -66,16 +132,42 @@ $lblTitle.Location = New-Object System.Drawing.Point(0, 8)
 $panelLeft.Controls.Add($lblTitle)
 
 # --- LOGO ---
+# Format logo yang disokong: PNG (disyorkan, min 256x256px) atau ICO (multi-resolusi)
+# Letakkan fail sebagai packages/icons/upm_logo.png untuk kualiti terbaik
+# Fallback: packages/icons/upm_logo.ico
 $picLogo = New-Object System.Windows.Forms.PictureBox
 $picLogo.Location = New-Object System.Drawing.Point(120, 65)
 $picLogo.Size = New-Object System.Drawing.Size(80, 80)
 $picLogo.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
 $picLogo.BackColor = [System.Drawing.Color]::Transparent
-$logoPath = Join-Path $env:HBUK_BASE_DIR "packages\icons\upm_logo.ico"
-if (Test-Path $logoPath) {
-    try { $picLogo.Image = (New-Object System.Drawing.Icon($logoPath, 256, 256)).ToBitmap() } catch {
-        try { $picLogo.Image = [System.Drawing.Image]::FromFile($logoPath) } catch {}
-    }
+# Keutamaan: PNG > ICO (PNG memberikan kualiti lebih baik tanpa pixelation)
+$logoPng = Join-Path $env:HBUK_BASE_DIR "packages\icons\upm_logo.png"
+$logoIco = Join-Path $env:HBUK_BASE_DIR "packages\icons\upm_logo.ico"
+if (Test-Path $logoPng) {
+    try {
+        $srcImg = [System.Drawing.Image]::FromFile($logoPng)
+        $bmp = New-Object System.Drawing.Bitmap(80, 80)
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $g.DrawImage($srcImg, 0, 0, 80, 80)
+        $g.Dispose()
+        $picLogo.Image = $bmp
+    } catch { try { $picLogo.Image = [System.Drawing.Image]::FromFile($logoPng) } catch {} }
+}
+elseif (Test-Path $logoIco) {
+    try {
+        $ico = New-Object System.Drawing.Icon($logoIco, 256, 256)
+        $srcBmp = $ico.ToBitmap()
+        $bmp = New-Object System.Drawing.Bitmap(80, 80)
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $g.DrawImage($srcBmp, 0, 0, 80, 80)
+        $g.Dispose()
+        $picLogo.Image = $bmp
+    } catch { try { $picLogo.Image = [System.Drawing.Image]::FromFile($logoIco) } catch {} }
 }
 $panelLeft.Controls.Add($picLogo)
 
@@ -991,6 +1083,12 @@ $btnRDInstall.Add_Click({
     
         Update-SystemInfo
         Write-Log "--- SELESAI: Pemasangan RustDesk ---"
+
+        # Animated toast notification pada kejayaan pemasangan
+        if (Test-Path $rdExeCheck) {
+            $rdVerToast = try { (Get-Item $rdExeCheck).VersionInfo.FileVersion -replace '\+.*','' } catch { 'N/A' }
+            Show-ToastNotification "RustDesk $rdVerToast berjaya dipasang dan dimulakan." "Pemasangan Berjaya" 3000
+        }
     })
 
 $btnRDConfig = New-RustButton "2. Tetapan Konfigurasi RustDesk HBUK" 140
@@ -1525,6 +1623,84 @@ $btnChangeUserPass.Add_Click({
         }
     })
 
+$btnDeleteUser = New-UserButton "4. Buang Akaun Pengguna" 335
+$btnDeleteUser.Add_Click({
+        Write-Log "--- Buang Akaun Pengguna ---"
+        # Senarai pengguna (kecuali akaun sistem yang dilindungi)
+        $protected = @('Administrator', 'DefaultAccount', 'Guest', 'WDAGUtilityAccount', $env:USERNAME)
+        $allUsers = Get-LocalUser | Where-Object { $_.Enabled -eq $true -and $_.Name -notin $protected } | Select-Object -ExpandProperty Name
+        if (-not $allUsers -or $allUsers.Count -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show("Tiada pengguna yang boleh dibuang.`n(Akaun sistem dan akaun semasa dilindungi)", "Makluman", 0, 64)
+            return
+        }
+        # Dialog pilihan pengguna
+        $dlg = New-Object System.Windows.Forms.Form
+        $dlg.Text = "Buang Akaun Pengguna"
+        $dlg.Size = New-Object System.Drawing.Size(420, 400)
+        $dlg.StartPosition = "CenterParent"
+        $dlg.FormBorderStyle = "FixedDialog"
+        $dlg.MaximizeBox = $false; $dlg.MinimizeBox = $false
+        $lblDel = New-Object System.Windows.Forms.Label
+        $lblDel.Text = "Pilih pengguna untuk dibuang:"
+        $lblDel.Location = New-Object System.Drawing.Point(20, 15)
+        $lblDel.AutoSize = $true
+        $lblDel.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+        $dlg.Controls.Add($lblDel)
+        $lbDel = New-Object System.Windows.Forms.ListBox
+        $lbDel.Location = New-Object System.Drawing.Point(20, 40)
+        $lbDel.Size = New-Object System.Drawing.Size(360, 200)
+        $lbDel.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+        foreach ($u in $allUsers) { $lbDel.Items.Add($u) | Out-Null }
+        $dlg.Controls.Add($lbDel)
+        # Checkbox padam profil sekali
+        $chkProfile = New-Object System.Windows.Forms.CheckBox
+        $chkProfile.Text = "Padam folder profil pengguna (C:\Users\...)"
+        $chkProfile.Location = New-Object System.Drawing.Point(20, 250)
+        $chkProfile.AutoSize = $true
+        $chkProfile.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+        $dlg.Controls.Add($chkProfile)
+        $btnDelOk = New-Object System.Windows.Forms.Button
+        $btnDelOk.Text = "Buang"
+        $btnDelOk.Location = New-Object System.Drawing.Point(20, 290)
+        $btnDelOk.Size = New-Object System.Drawing.Size(170, 35)
+        $btnDelOk.BackColor = [System.Drawing.Color]::FromArgb(192, 57, 43)
+        $btnDelOk.ForeColor = [System.Drawing.Color]::White
+        $btnDelOk.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $dlg.Controls.Add($btnDelOk)
+        $btnDelCancel = New-Object System.Windows.Forms.Button
+        $btnDelCancel.Text = "Batal"
+        $btnDelCancel.Location = New-Object System.Drawing.Point(210, 290)
+        $btnDelCancel.Size = New-Object System.Drawing.Size(170, 35)
+        $btnDelCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+        $dlg.Controls.Add($btnDelCancel)
+        $dlg.AcceptButton = $btnDelOk; $dlg.CancelButton = $btnDelCancel
+        $res = $dlg.ShowDialog()
+        if ($res -eq [System.Windows.Forms.DialogResult]::OK -and $lbDel.SelectedItem) {
+            $target = $lbDel.SelectedItem.ToString()
+            $confirmMsg = "AMARAN: Akaun '$target' akan DIBUANG secara kekal."
+            if ($chkProfile.Checked) { $confirmMsg += "`n`nFolder profil C:\Users\$target juga akan DIPADAM." }
+            $confirmMsg += "`n`nAdakah anda pasti?"
+            $confirm = [System.Windows.Forms.MessageBox]::Show($confirmMsg, "Pengesahan Buang Akaun", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) {
+                $delResult = net user $target /delete 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Log "[OK] Akaun '$target' berjaya dibuang."
+                    if ($chkProfile.Checked) {
+                        $profilePath = "C:\Users\$target"
+                        if (Test-Path $profilePath) {
+                            Remove-Item $profilePath -Recurse -Force -ErrorAction SilentlyContinue
+                            Write-Log "[OK] Folder profil '$profilePath' dipadam."
+                        }
+                    }
+                    [System.Windows.Forms.MessageBox]::Show("Akaun '$target' berjaya dibuang.", "Berjaya", 0, [System.Windows.Forms.MessageBoxIcon]::Information)
+                } else {
+                    Write-Log "RALAT: Gagal membuang '$target'. $delResult"
+                    [System.Windows.Forms.MessageBox]::Show("Gagal membuang akaun '$target'.`n$delResult", "Ralat", 0, [System.Windows.Forms.MessageBoxIcon]::Error)
+                }
+            } else { Write-Log "Dibatalkan oleh pengguna." }
+        }
+    })
+
 # Combine Panels
 $panelContent.Controls.Add($panelMainMenu)
 $panelContent.Controls.Add($panelSPAI)
@@ -1559,7 +1735,7 @@ $btnBackUser.BringToFront()
 # Show initial state
 Show-Panel $panelMainMenu
 Update-SystemInfo
-Write-Log "HBUK User Deployment Suite V4.1 dimulakan."
+Write-Log "HBUK User Deployment Suite V4.2 dimulakan."
 Write-Log "Hostname: $env:COMPUTERNAME | Log: $script:LogFile"
 
 $form.ShowDialog() | Out-Null
