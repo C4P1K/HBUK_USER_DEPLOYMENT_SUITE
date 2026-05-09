@@ -1,0 +1,3 @@
+# SPAI (GLPI Agent) Server Configuration
+# Edit URL server di bawah tanpa perlu ubah skrip utama
+SERVER=http://10.138.101.145,https://helpdeskict.moh.gov.my/

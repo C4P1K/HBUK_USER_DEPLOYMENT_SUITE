@@ -1,5 +1,5 @@
 # ==============================================================================
-# HBUK USER DEPLOYMENT SUITE V4.2
+# HBUK USER DEPLOYMENT SUITE V4.3
 # ==============================================================================
 
 # --- ADMIN PRIVILEGE CHECK ---
@@ -24,7 +24,7 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 # --- FORM SETUP ---
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "HBUK User Deployment Suite V4.2"
+$form.Text = "HBUK User Deployment Suite V4.3"
 $form.Size = New-Object System.Drawing.Size(1050, 750)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -362,13 +362,18 @@ $btnMenu4 = New-MainMenuButton "4. Pasang Tema Windows HBUK" 230
 $btnMenu4.Add_Click({
         Write-Log "--- Pemasangan Tema HBUK ---"
         $themeDir = "$env:HBUK_BASE_DIR\packages\themes"
+        # Semakan awal: pastikan folder tema wujud dan ada fail (B-05)
+        if (-not (Test-Path $themeDir)) {
+            Write-Log "RALAT: Folder packages\themes\ tidak wujud."
+            [System.Windows.Forms.MessageBox]::Show("Folder 'packages\themes' tidak dijumpai.", "Ralat", 0, 48); return
+        }
         $dark = Join-Path $themeDir "HBUK_THEME_DARK.deskthemepack"
         $light = Join-Path $themeDir "HBUK_THEME_LIGHT.deskthemepack"
         $hasDark = Test-Path $dark; $hasLight = Test-Path $light
     
         if (-not $hasDark -and -not $hasLight) {
             Write-Log "RALAT: Tiada fail tema dijumpai di packages\themes\"
-            [System.Windows.Forms.MessageBox]::Show("Tiada fail tema dijumpai.", "Ralat", 0, 48); return
+            [System.Windows.Forms.MessageBox]::Show("Tiada fail .deskthemepack dijumpai di folder themes.`nLetakkan fail HBUK_THEME_DARK.deskthemepack atau HBUK_THEME_LIGHT.deskthemepack.", "Ralat", 0, 48); return
         }
     
         $msg = "Pilih tema:`n"
@@ -389,11 +394,49 @@ $btnMenu4.Add_Click({
 $btnMenu5 = New-MainMenuButton "5. Housekeeping" 280
 $btnMenu5.Add_Click({
         Write-Log "--- Housekeeping ---"
+        # Pilihan housekeeping
+        $hkMsg = "Pilih tindakan housekeeping:`n`n[1] Bersih TEMP sahaja (pantas)`n[2] Bersih penuh (TEMP + Cache Browser + WinUpdate + Recycle Bin + DNS)`n`nMasukkan pilihan (1/2):"
+        $hkChoice = [Microsoft.VisualBasic.Interaction]::InputBox($hkMsg, "Housekeeping", "1")
+        if (-not $hkChoice) { return }
+        $totalCleaned = 0
+        # TEMP sentiasa dibersihkan
         $count1 = (Get-ChildItem "$env:TEMP\*" -Recurse -ErrorAction SilentlyContinue).Count
         Remove-Item "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item "${env:SystemRoot}\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Log "[OK] Housekeeping selesai. ~$count1 fail dibersihkan."
-        [System.Windows.Forms.MessageBox]::Show("Housekeeping Selesai!", "Berjaya", 0, 64)
+        $totalCleaned += $count1
+        Write-Log "[OK] TEMP dibersihkan (~$count1 fail)."
+        if ($hkChoice -eq "2") {
+            # Cache browser (Edge/Chrome)
+            $browserPaths = @(
+                "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache",
+                "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache"
+            )
+            foreach ($bp in $browserPaths) {
+                if (Test-Path $bp) {
+                    $bc = (Get-ChildItem "$bp\*" -Recurse -ErrorAction SilentlyContinue).Count
+                    Remove-Item "$bp\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    $totalCleaned += $bc
+                    Write-Log "[OK] Cache browser dibersihkan: $bp (~$bc fail)"
+                }
+            }
+            # Windows Update cache
+            $wuPath = "$env:SystemRoot\SoftwareDistribution\Download"
+            if (Test-Path $wuPath) {
+                $wc = (Get-ChildItem "$wuPath\*" -Recurse -ErrorAction SilentlyContinue).Count
+                Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
+                Remove-Item "$wuPath\*" -Recurse -Force -ErrorAction SilentlyContinue
+                Start-Service wuauserv -ErrorAction SilentlyContinue
+                $totalCleaned += $wc
+                Write-Log "[OK] Windows Update cache dibersihkan (~$wc fail)."
+            }
+            # Recycle Bin
+            try { Clear-RecycleBin -Force -ErrorAction SilentlyContinue; Write-Log "[OK] Recycle Bin dikosongkan." } catch {}
+            # Flush DNS
+            ipconfig /flushdns 2>$null | Out-Null
+            Write-Log "[OK] DNS cache dibersihkan."
+        }
+        Write-Log "[OK] Housekeeping selesai. Jumlah: ~$totalCleaned fail dibersihkan."
+        [System.Windows.Forms.MessageBox]::Show("Housekeeping Selesai!`nJumlah ~$totalCleaned fail dibersihkan.", "Berjaya", 0, 64)
     })
 
 $btnMenu6 = New-MainMenuButton "6. Keluar" 330
@@ -508,8 +551,19 @@ function Install-VCRedistIfNeeded {
 }
 
 # --- SPAI Install Logic (shared) ---
+# Server URL diambil dari packages/config/spai_config.txt (format: SERVER=url)
+# Fallback: hardcoded default jika fail tidak dijumpai
 function Install-SPAIWithTag($finalTag) {
     $serverUrl = "http://10.138.101.145,https://helpdeskict.moh.gov.my/"
+    $spaiCfg = Join-Path $env:HBUK_BASE_DIR "packages\config\spai_config.txt"
+    if (Test-Path $spaiCfg) {
+        foreach ($cfgLine in Get-Content $spaiCfg) {
+            if ($cfgLine -match "^SERVER=(.*)") { $serverUrl = $matches[1].Trim() }
+        }
+        Write-Log "SPAI server URL dari config: $serverUrl"
+    } else {
+        Write-Log "AMARAN: spai_config.txt tidak dijumpai. Guna URL lalai."
+    }
     Write-Log "--- MULA: Pemasangan SPAI Agent ---"
     Write-Log "Tag: $finalTag"
     # Auto-install VC++ if needed
@@ -1163,6 +1217,16 @@ $btnRDConfig.Add_Click({
         }
         Write-Log "[OK] TOML dikemaskini."
     
+        # Ujian sambungan ke server RustDesk (F-09)
+        Write-Log "Menguji sambungan ke server RustDesk ($idSrv)..."
+        $pingResult = Test-Connection -ComputerName $idSrv -Count 2 -ErrorAction SilentlyContinue
+        if ($pingResult) {
+            $avgMs = [Math]::Round(($pingResult | Measure-Object -Property ResponseTime -Average).Average, 1)
+            Write-Log "[OK] Server $idSrv boleh dicapai. Latency: ${avgMs}ms"
+        } else {
+            Write-Log "AMARAN: Server $idSrv TIDAK boleh dicapai (ping gagal). Semak rangkaian."
+        }
+    
         # Restart Service FIRST so password can be set
         sc.exe start RustDesk 2>$null | Out-Null
         Start-Sleep -Seconds 2
@@ -1701,6 +1765,99 @@ $btnDeleteUser.Add_Click({
         }
     })
 
+$btnToggleUser = New-UserButton "5. Lumpuhkan / Aktifkan Akaun" 390
+$btnToggleUser.Add_Click({
+        Write-Log "--- Lumpuhkan / Aktifkan Akaun ---"
+        $protected = @('Administrator', 'DefaultAccount', 'WDAGUtilityAccount')
+        $allAcc = Get-LocalUser | Where-Object { $_.Name -notin $protected } | Select-Object Name, Enabled
+        if (-not $allAcc -or $allAcc.Count -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show("Tiada akaun dijumpai.", "Makluman", 0, 64); return
+        }
+        $dlg = New-Object System.Windows.Forms.Form
+        $dlg.Text = "Lumpuhkan / Aktifkan Akaun"
+        $dlg.Size = New-Object System.Drawing.Size(420, 380)
+        $dlg.StartPosition = "CenterParent"
+        $dlg.FormBorderStyle = "FixedDialog"
+        $dlg.MaximizeBox = $false; $dlg.MinimizeBox = $false
+        $lblTog = New-Object System.Windows.Forms.Label
+        $lblTog.Text = "Pilih akaun (status ditunjukkan):"
+        $lblTog.Location = New-Object System.Drawing.Point(20, 15)
+        $lblTog.AutoSize = $true
+        $lblTog.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+        $dlg.Controls.Add($lblTog)
+        $lbTog = New-Object System.Windows.Forms.ListBox
+        $lbTog.Location = New-Object System.Drawing.Point(20, 40)
+        $lbTog.Size = New-Object System.Drawing.Size(360, 210)
+        $lbTog.Font = New-Object System.Drawing.Font("Segoe UI", 11)
+        foreach ($a in $allAcc) {
+            $status = if ($a.Enabled) { "AKTIF" } else { "DILUMPUHKAN" }
+            $lbTog.Items.Add("$($a.Name)  [$status]") | Out-Null
+        }
+        $dlg.Controls.Add($lbTog)
+        $btnTogOk = New-Object System.Windows.Forms.Button
+        $btnTogOk.Text = "Tukar Status"
+        $btnTogOk.Location = New-Object System.Drawing.Point(20, 265)
+        $btnTogOk.Size = New-Object System.Drawing.Size(170, 35)
+        $btnTogOk.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $dlg.Controls.Add($btnTogOk)
+        $btnTogCancel = New-Object System.Windows.Forms.Button
+        $btnTogCancel.Text = "Batal"
+        $btnTogCancel.Location = New-Object System.Drawing.Point(210, 265)
+        $btnTogCancel.Size = New-Object System.Drawing.Size(170, 35)
+        $btnTogCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+        $dlg.Controls.Add($btnTogCancel)
+        $dlg.AcceptButton = $btnTogOk; $dlg.CancelButton = $btnTogCancel
+        $res = $dlg.ShowDialog()
+        if ($res -eq [System.Windows.Forms.DialogResult]::OK -and $lbTog.SelectedItem) {
+            $selText = $lbTog.SelectedItem.ToString()
+            $targetName = ($selText -split '\s{2}\[')[0].Trim()
+            $acct = Get-LocalUser -Name $targetName -ErrorAction SilentlyContinue
+            if ($acct) {
+                if ($acct.Enabled) {
+                    Disable-LocalUser -Name $targetName -ErrorAction SilentlyContinue
+                    Write-Log "[OK] Akaun '$targetName' dilumpuhkan."
+                    [System.Windows.Forms.MessageBox]::Show("Akaun '$targetName' telah DILUMPUHKAN.", "Berjaya", 0, 64)
+                } else {
+                    Enable-LocalUser -Name $targetName -ErrorAction SilentlyContinue
+                    Write-Log "[OK] Akaun '$targetName' diaktifkan."
+                    [System.Windows.Forms.MessageBox]::Show("Akaun '$targetName' telah DIAKTIFKAN.", "Berjaya", 0, 64)
+                }
+            }
+        }
+    })
+
+$btnExportReport = New-UserButton "6. Eksport Laporan Sistem" 445
+$btnExportReport.Add_Click({
+        Write-Log "--- Eksport Laporan Sistem ---"
+        $reportPath = Join-Path $script:LogFolder "SystemReport-$env:COMPUTERNAME-$(Get-Date -Format 'yyyyMMdd-HHmmss').txt"
+        $report = @()
+        $report += "=== LAPORAN SISTEM HBUK ==="
+        $report += "Tarikh: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $report += "Hostname: $env:COMPUTERNAME"
+        $report += "OS: $((Get-CimInstance Win32_OperatingSystem).Caption)"
+        $report += "RAM: $([Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)) GB"
+        $report += ""
+        # SPAI
+        $svc = Get-Service glpi-agent -ErrorAction SilentlyContinue
+        $report += "--- SPAI ---"
+        $report += "Status: $(if($svc){$svc.Status}else{'Tidak Dipasang'})"
+        $tag = (Get-ItemProperty "HKLM:\SOFTWARE\GLPI-Agent" -Name tag -EA SilentlyContinue).tag
+        $report += "Tag: $(if($tag){$tag}else{'N/A'})"
+        $report += ""
+        # RustDesk
+        $rdExeR = if(Test-Path "$env:ProgramFiles\RustDesk\rustdesk.exe"){"$env:ProgramFiles\RustDesk\rustdesk.exe"}elseif(Test-Path "${env:ProgramFiles(x86)}\RustDesk\rustdesk.exe"){"${env:ProgramFiles(x86)}\RustDesk\rustdesk.exe"}else{$null}
+        $report += "--- RUSTDESK ---"
+        $report += "Status: $(if($rdExeR){'Dipasang'}else{'Tidak Dipasang'})"
+        if ($rdExeR) { $report += "Versi: $((Get-Item $rdExeR).VersionInfo.FileVersion -replace '\+.*','')" }
+        $report += ""
+        # Pengguna
+        $report += "--- SENARAI PENGGUNA ---"
+        Get-LocalUser | ForEach-Object { $report += "  $($_.Name) | Enabled: $($_.Enabled)" }
+        $report | Set-Content -Path $reportPath -Encoding UTF8
+        Write-Log "[OK] Laporan disimpan: $reportPath"
+        [System.Windows.Forms.MessageBox]::Show("Laporan disimpan ke:`n$reportPath", "Berjaya", 0, 64)
+    })
+
 # Combine Panels
 $panelContent.Controls.Add($panelMainMenu)
 $panelContent.Controls.Add($panelSPAI)
@@ -1735,7 +1892,7 @@ $btnBackUser.BringToFront()
 # Show initial state
 Show-Panel $panelMainMenu
 Update-SystemInfo
-Write-Log "HBUK User Deployment Suite V4.2 dimulakan."
+Write-Log "HBUK User Deployment Suite V4.3 dimulakan."
 Write-Log "Hostname: $env:COMPUTERNAME | Log: $script:LogFile"
 
 $form.ShowDialog() | Out-Null
