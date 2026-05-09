@@ -1,5 +1,5 @@
-﻿# ==============================================================================
-# HBUK USER DEPLOYMENT SUITE V4.0
+# ==============================================================================
+# HBUK USER DEPLOYMENT SUITE V4.1
 # ==============================================================================
 
 # --- ADMIN PRIVILEGE CHECK ---
@@ -12,21 +12,19 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 
 # --- FIX $PSScriptRoot FOR COMPILED EXE ---
-
+$env:HBUK_BASE_DIR = $PSScriptRoot
+if (-not $env:HBUK_BASE_DIR) { $env:HBUK_BASE_DIR = Split-Path -Parent ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) }
 
 # --- INIT WINFORMS ---
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName Microsoft.VisualBasic
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 # --- FORM SETUP ---
-$env:HBUK_BASE_DIR = $PSScriptRoot
-if (-not $env:HBUK_BASE_DIR) { $env:HBUK_BASE_DIR = Split-Path -Parent ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) }
 
 $form = New-Object System.Windows.Forms.Form
-$env:HBUK_BASE_DIR = $PSScriptRoot
-if (-not $env:HBUK_BASE_DIR) { $env:HBUK_BASE_DIR = Split-Path -Parent ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) }
-$form.Text = "HBUK User Deployment Suite V4.0"
+$form.Text = "HBUK User Deployment Suite V4.1"
 $form.Size = New-Object System.Drawing.Size(1050, 750)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -62,14 +60,28 @@ $lblTitle.Text = "HBUK USER`nDEPLOYMENT SUITE"
 $lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
 $lblTitle.ForeColor = [System.Drawing.Color]::White
 $lblTitle.AutoSize = $false
-$lblTitle.Size = New-Object System.Drawing.Size(320, 60)
+$lblTitle.Size = New-Object System.Drawing.Size(320, 55)
 $lblTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-$lblTitle.Location = New-Object System.Drawing.Point(0, 15)
+$lblTitle.Location = New-Object System.Drawing.Point(0, 8)
 $panelLeft.Controls.Add($lblTitle)
 
+# --- LOGO ---
+$picLogo = New-Object System.Windows.Forms.PictureBox
+$picLogo.Location = New-Object System.Drawing.Point(120, 65)
+$picLogo.Size = New-Object System.Drawing.Size(80, 80)
+$picLogo.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
+$picLogo.BackColor = [System.Drawing.Color]::Transparent
+$logoPath = Join-Path $env:HBUK_BASE_DIR "packages\icons\upm_logo.ico"
+if (Test-Path $logoPath) {
+    try { $picLogo.Image = (New-Object System.Drawing.Icon($logoPath, 256, 256)).ToBitmap() } catch {
+        try { $picLogo.Image = [System.Drawing.Image]::FromFile($logoPath) } catch {}
+    }
+}
+$panelLeft.Controls.Add($picLogo)
+
 $rtbInfo = New-Object System.Windows.Forms.RichTextBox
-$rtbInfo.Size = New-Object System.Drawing.Size(280, 555)
-$rtbInfo.Location = New-Object System.Drawing.Point(20, 85)
+$rtbInfo.Size = New-Object System.Drawing.Size(280, 485)
+$rtbInfo.Location = New-Object System.Drawing.Point(20, 155)
 $rtbInfo.Font = New-Object System.Drawing.Font("Consolas", 9)
 $rtbInfo.ReadOnly = $true
 $rtbInfo.BackColor = [System.Drawing.Color]::FromArgb(44, 62, 80)
@@ -111,8 +123,13 @@ function Update-SystemInfo {
         }
         catch {}
         try {
-            $rdIdRaw = & $rdExe --get-id 2>$null
-            if ($rdIdRaw) { $rdId = $rdIdRaw.Trim() }
+            $job = Start-Job -ScriptBlock { param($exe) & $exe --get-id 2>$null } -ArgumentList $rdExe
+            $completed = $job | Wait-Job -Timeout 5
+            if ($completed) {
+                $rdIdRaw = Receive-Job $job
+                if ($rdIdRaw) { $rdId = ($rdIdRaw | Out-String).Trim() }
+            } else { Write-Log "AMARAN: --get-id timeout (5s)." }
+            Remove-Job $job -Force -ErrorAction SilentlyContinue
         }
         catch {}
 
@@ -1061,7 +1078,7 @@ $btnRDConfig.Add_Click({
             else { Write-Log "AMARAN: Gagal menetapkan kata laluan." }
         }
     
-        Start-Process "$env:ProgramFiles\RustDesk\rustdesk.exe" -ArgumentList "--tray" -WindowStyle Hidden -ErrorAction SilentlyContinue
+        if (Test-Path $rd) { Start-Process $rd -ArgumentList "--tray" -WindowStyle Hidden -ErrorAction SilentlyContinue }
     
         Update-SystemInfo
         Write-Log "[OK] Konfigurasi HBUK berjaya diaplikasikan!"
@@ -1142,6 +1159,13 @@ $btnRDTukarID.Add_Click({
     
         $updated = 0
         foreach ($p in $paths) {
+            # Create config directory if it doesn't exist (ensures all user profiles get the ID)
+            $dir = Split-Path $p -Parent
+            if (-not (Test-Path $dir)) {
+                New-Item -ItemType Directory -Path $dir -Force -ErrorAction SilentlyContinue | Out-Null
+                Write-Log "  Cipta direktori: $dir"
+            }
+
             if (Test-Path $p) {
                 $content = Get-Content $p
                 $newContent = @(); $foundEnc = $false; $foundId = $false
@@ -1168,9 +1192,18 @@ $btnRDTukarID.Add_Click({
                 if (-not $generatedEncId -and -not $foundId) { $newContent = @("id = '$newId'") + $newContent }
                 
                 $newContent | Set-Content $p -Encoding UTF8
-                Write-Log "  Updated: $p"
-                $updated++
             }
+            else {
+                # Create new config file with ID for users who haven't run RustDesk yet
+                if ($generatedEncId) {
+                    "enc_id = '$generatedEncId'" | Set-Content $p -Encoding UTF8
+                }
+                else {
+                    "id = '$newId'" | Set-Content $p -Encoding UTF8
+                }
+            }
+            Write-Log "  Updated: $p"
+            $updated++
         }
 
         # Simpan plain text ID secara kekal dalam fail berasingan
@@ -1433,7 +1466,7 @@ function Show-UserPicker($title) {
     return $null
 }
 
-Add-Type -AssemblyName Microsoft.VisualBasic
+# (Microsoft.VisualBasic loaded at init)
 
 $btnAddUser = New-UserButton "1. Tambah Akaun Pengguna Baru" 170
 $btnAddUser.Add_Click({
@@ -1443,12 +1476,17 @@ $btnAddUser.Add_Click({
         
         $uname = [Microsoft.VisualBasic.Interaction]::InputBox("Masukkan Login ID pengguna baharu (contoh: pentadbir):", "Tambah Pengguna")
         if ($uname) {
-            net user $uname /add | Out-Null
+            $netResult = net user $uname /add 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "RALAT: Gagal menambah pengguna '$uname'. $netResult"
+                [System.Windows.Forms.MessageBox]::Show("Gagal menambah pengguna '$uname'.`n$netResult", "Ralat", 0, [System.Windows.Forms.MessageBoxIcon]::Error)
+                return
+            }
             if ($typeChoice -eq "1") {
-                net localgroup Administrators $uname /add | Out-Null
+                net localgroup Administrators $uname /add 2>&1 | Out-Null
                 $acctType = "Administrator"
             } else {
-                net localgroup Users $uname /add | Out-Null
+                # 'net user /add' sudah masukkan ke kumpulan Users secara automatik
                 $acctType = "Standard"
             }
             [System.Windows.Forms.MessageBox]::Show("Pengguna '$uname' telah didaftarkan sebagai $acctType tanpa kata laluan.`n(Boleh set di Control Panel)", "Berjaya", 0, [System.Windows.Forms.MessageBoxIcon]::Information)
@@ -1521,7 +1559,7 @@ $btnBackUser.BringToFront()
 # Show initial state
 Show-Panel $panelMainMenu
 Update-SystemInfo
-Write-Log "HBUK User Deployment Suite V4.0 dimulakan."
+Write-Log "HBUK User Deployment Suite V4.1 dimulakan."
 Write-Log "Hostname: $env:COMPUTERNAME | Log: $script:LogFile"
 
 $form.ShowDialog() | Out-Null
