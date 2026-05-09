@@ -11,9 +11,12 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     Exit
 }
 
-# --- FIX $PSScriptRoot FOR COMPILED EXE ---
-$env:HBUK_BASE_DIR = $PSScriptRoot
-if (-not $env:HBUK_BASE_DIR) { $env:HBUK_BASE_DIR = Split-Path -Parent ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) }
+# --- FIX $PSScriptRoot FOR _core/ SUBFOLDER ---
+# Skrip kini di dalam _core/ — HBUK_BASE_DIR perlu menunjuk ke root (satu aras ke atas)
+$env:HBUK_BASE_DIR = Split-Path -Parent $PSScriptRoot
+if (-not $env:HBUK_BASE_DIR -or $env:HBUK_BASE_DIR -eq "") {
+    $env:HBUK_BASE_DIR = Split-Path -Parent (Split-Path -Parent ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName))
+}
 
 # --- INIT WINFORMS ---
 Add-Type -AssemblyName System.Windows.Forms
@@ -75,6 +78,8 @@ function Set-UITheme {
         $fgBtn = [System.Drawing.Color]::White
         $bgLog = [System.Drawing.Color]::FromArgb(20, 20, 20)
         $fgLog = [System.Drawing.Color]::LimeGreen
+        $bgSidebar = [System.Drawing.Color]::FromArgb(18, 18, 30)
+        $bgInfoBox = [System.Drawing.Color]::FromArgb(18, 18, 30)
     } else {
         $bgMain = [System.Drawing.Color]::White
         $bgPanel = [System.Drawing.Color]::White
@@ -83,12 +88,17 @@ function Set-UITheme {
         $fgBtn = [System.Drawing.Color]::Black
         $bgLog = [System.Drawing.Color]::FromArgb(30, 30, 30)
         $fgLog = [System.Drawing.Color]::LimeGreen
+        $bgSidebar = [System.Drawing.Color]::FromArgb(44, 62, 80)
+        $bgInfoBox = [System.Drawing.Color]::FromArgb(44, 62, 80)
     }
     $form.BackColor = $bgMain
     $panelContent.BackColor = $bgPanel
     $lblLogTitle.ForeColor = $fgText
     $script:rtbLog.BackColor = $bgLog
     $script:rtbLog.ForeColor = $fgLog
+    # Sidebar / left panel
+    $panelLeft.BackColor = $bgSidebar
+    $rtbInfo.BackColor = $bgInfoBox
     # Rekursif kemaskini semua panel dan kawalan
     foreach ($panel in @($panelMainMenu, $panelSPAI, $panelRustDesk, $panelUser)) {
         if ($panel) {
@@ -219,7 +229,7 @@ elseif (Test-Path $logoIco) {
 $panelLeft.Controls.Add($picLogo)
 
 $rtbInfo = New-Object System.Windows.Forms.RichTextBox
-$rtbInfo.Size = New-Object System.Drawing.Size(280, 485)
+$rtbInfo.Size = New-Object System.Drawing.Size(280, 430)
 $rtbInfo.Location = New-Object System.Drawing.Point(20, 155)
 $rtbInfo.Font = New-Object System.Drawing.Font("Consolas", 9)
 $rtbInfo.ReadOnly = $true
@@ -333,8 +343,8 @@ function Update-SystemInfo {
 
 $btnRefreshInfo = New-Object System.Windows.Forms.Button
 $btnRefreshInfo.Text = "Refresh Parameter"
-$btnRefreshInfo.Location = New-Object System.Drawing.Point(20, 650)
-$btnRefreshInfo.Size = New-Object System.Drawing.Size(280, 40)
+$btnRefreshInfo.Location = New-Object System.Drawing.Point(20, 600)
+$btnRefreshInfo.Size = New-Object System.Drawing.Size(280, 35)
 $btnRefreshInfo.FlatStyle = "Flat"
 $btnRefreshInfo.ForeColor = [System.Drawing.Color]::White
 $btnRefreshInfo.Add_Click({ Update-SystemInfo })
@@ -343,8 +353,8 @@ $panelLeft.Controls.Add($btnRefreshInfo)
 # --- BUTANG TEMA GELAP/TERANG (F-10) ---
 $btnThemeToggle = New-Object System.Windows.Forms.Button
 $btnThemeToggle.Text = [char]0x263D + " Dark Mode"
-$btnThemeToggle.Location = New-Object System.Drawing.Point(20, 695)
-$btnThemeToggle.Size = New-Object System.Drawing.Size(280, 30)
+$btnThemeToggle.Location = New-Object System.Drawing.Point(20, 645)
+$btnThemeToggle.Size = New-Object System.Drawing.Size(280, 35)
 $btnThemeToggle.FlatStyle = "Flat"
 $btnThemeToggle.ForeColor = [System.Drawing.Color]::White
 $btnThemeToggle.Font = New-Object System.Drawing.Font("Segoe UI", 9)

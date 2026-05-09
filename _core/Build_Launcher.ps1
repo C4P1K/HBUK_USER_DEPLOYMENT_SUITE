@@ -1,5 +1,6 @@
 # Skrip ini akan mengkompilasi kod C# kecil menjadi fail Executable (.exe)
 # yang kalis tetingkap biru.
+# EXE diletakkan di ROOT folder (bukan _core/) supaya bos nampak sahaja .exe dan .vbs
 
 $sourceCode = @"
 using System;
@@ -15,10 +16,10 @@ namespace HBUKLauncher
         static void Main(string[] args)
         {
             string appDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            string ps1Path = Path.Combine(appDir, "HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1");
+            string ps1Path = Path.Combine(appDir, "_core", "HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1");
             
             if (!File.Exists(ps1Path)) {
-                System.Windows.Forms.MessageBox.Show("Fail 'HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1' tidak dijumpai di dalam folder ini.", "Ralat", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                System.Windows.Forms.MessageBox.Show("Fail '_core\\HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1' tidak dijumpai.", "Ralat", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
                 return;
             }
 
@@ -42,18 +43,20 @@ namespace HBUKLauncher
 $frameworkPath = [System.Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
 $cscPath = Join-Path $frameworkPath "csc.exe"
 
-$currentDir = $PSScriptRoot
-if(-not $currentDir) { $currentDir = (Get-Location).Path }
-$outPath = Join-Path $currentDir "HBUK_DEPLOYMENT_SUITE.exe"
+# Output ke ROOT folder (parent of _core/)
+$rootDir = Split-Path -Parent $PSScriptRoot
+if (-not $rootDir) { $rootDir = Split-Path -Parent (Get-Location).Path }
+$outPath = Join-Path $rootDir "HBUK_USER_DEPLOYMENT_SUITE_V4.5.exe"
 
 $tempFile = Join-Path $env:TEMP "TempLauncher.cs"
 Set-Content -Path $tempFile -Value $sourceCode
 
-Write-Host "Sedang membina HBUK_DEPLOYMENT_SUITE.exe..."
+Write-Host "Sedang membina HBUK_USER_DEPLOYMENT_SUITE_V4.5.exe..."
 & $cscPath /target:winexe /out:"$outPath" /reference:System.Windows.Forms.dll "$tempFile"
 
 if(Test-Path $outPath) {
-    Write-Host "[OK] HBUK_DEPLOYMENT_SUITE.exe telah berjaya dibina!" -ForegroundColor Green
+    Write-Host "[OK] HBUK_USER_DEPLOYMENT_SUITE_V4.5.exe telah berjaya dibina!" -ForegroundColor Green
+    Write-Host "Lokasi: $outPath"
 } else {
     Write-Host "[!] Gagal membina." -ForegroundColor Red
 }

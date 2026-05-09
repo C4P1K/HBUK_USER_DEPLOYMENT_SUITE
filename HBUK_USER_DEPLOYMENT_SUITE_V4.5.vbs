@@ -8,7 +8,7 @@ Set objShell = CreateObject("WScript.Shell")
 
 ' Dapatkan folder semasa (berfungsi dari mana-mana pemacu USB)
 strDir = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\"))
-strScript = strDir & "HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1"
+strScript = strDir & "_core\HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1"
 
 ' Semak fail wujud
 Dim objFSO
