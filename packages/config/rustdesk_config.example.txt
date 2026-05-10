@@ -1,0 +1,27 @@
+# ===================================================
+# HBUK RustDesk Configuration File
+# ===================================================
+# Edit this file to change RustDesk settings.
+# The GUI button "2. Konfigurasi RustDesk HBUK" reads from this file.
+#
+# FORMAT: KEY=VALUE (no spaces around =)
+# Lines starting with # are comments and will be ignored.
+#
+# To update config in future:
+#   1. Edit this file with new server/key/password
+#   2. Run the GUI > Pengurusan RustDesk > Konfigurasi RustDesk HBUK
+#   3. It will apply the new settings to the PC automatically
+# ===================================================
+
+# RustDesk Server IP (your self-hosted relay server)
+ID_SERVER=YOUR_SERVER_IP
+
+# Relay server (usually same as ID_SERVER)
+RELAY_SERVER=YOUR_RELAY_IP
+
+# Server public key (from your RustDesk server)
+KEY=YOUR_PUBLIC_KEY
+
+# Permanent admin password for remote access
+# This allows ICT admin to connect without user approval
+PASSWORD=YOUR_ADMIN_PASSWORD
