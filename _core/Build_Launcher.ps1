@@ -1,0 +1,78 @@
+# Skrip ini akan mengkompilasi kod C# kecil menjadi fail Executable (.exe)
+# yang kalis tetingkap biru.
+# EXE diletakkan di ROOT folder (bukan _core/) supaya bos nampak sahaja .exe dan .vbs
+
+$sourceCode = @"
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Reflection;
+
+namespace HBUKLauncher
+{
+    class Program
+    {
+        [STAThread]
+        static void Main(string[] args)
+        {
+            string appDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            string ps1Path = Path.Combine(appDir, "_core", "HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1");
+            
+            if (!File.Exists(ps1Path)) {
+                System.Windows.Forms.MessageBox.Show("Fail '_core\\HBUK_USER_DEPLOYMENT_SUITE_V4.5.ps1' tidak dijumpai.", "Ralat", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
+                return;
+            }
+
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.FileName = "powershell.exe";
+            startInfo.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + ps1Path + "\"";
+            startInfo.CreateNoWindow = true;
+            startInfo.UseShellExecute = false;
+
+            try {
+                Process.Start(startInfo);
+            } catch (Exception ex) {
+                System.Windows.Forms.MessageBox.Show(ex.Message);
+            }
+        }
+    }
+}
+"@
+
+# Cari jalan ke csc.exe (Pengkompil C# sedia ada di dalam PC)
+$frameworkPath = [System.Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+$cscPath = Join-Path $frameworkPath "csc.exe"
+
+# Output ke ROOT folder (parent of _core/)
+$rootDir = Split-Path -Parent $PSScriptRoot
+if (-not $rootDir) { $rootDir = Split-Path -Parent (Get-Location).Path }
+$outPath = Join-Path $rootDir "HBUK_USER_DEPLOYMENT_SUITE_V4.5.exe"
+
+# Ikon untuk EXE (packages/icons/upm_logo.ico)
+$icoPath = Join-Path $rootDir "packages\icons\upm_logo.ico"
+$iconArg = ""
+if (Test-Path $icoPath) {
+    $iconArg = "/win32icon:`"$icoPath`""
+    Write-Host "Ikon dijumpai: $icoPath"
+} else {
+    Write-Host "AMARAN: upm_logo.ico tidak dijumpai. EXE tanpa ikon." -ForegroundColor Yellow
+}
+
+$tempFile = Join-Path $env:TEMP "TempLauncher.cs"
+Set-Content -Path $tempFile -Value $sourceCode
+
+Write-Host "Sedang membina HBUK_USER_DEPLOYMENT_SUITE_V4.5.exe..."
+if ($iconArg) {
+    & $cscPath /target:winexe /out:"$outPath" /reference:System.Windows.Forms.dll $iconArg "$tempFile"
+} else {
+    & $cscPath /target:winexe /out:"$outPath" /reference:System.Windows.Forms.dll "$tempFile"
+}
+
+if(Test-Path $outPath) {
+    Write-Host "[OK] HBUK_USER_DEPLOYMENT_SUITE_V4.5.exe telah berjaya dibina!" -ForegroundColor Green
+    Write-Host "Lokasi: $outPath"
+} else {
+    Write-Host "[!] Gagal membina." -ForegroundColor Red
+}
+
+Remove-Item $tempFile -ErrorAction SilentlyContinue

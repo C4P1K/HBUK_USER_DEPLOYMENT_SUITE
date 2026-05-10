@@ -1,0 +1,13 @@
+# ============================================================
+# .gitattributes — Kawalan eksport untuk git archive / GitHub ZIP
+# Fail bertanda 'export-ignore' TIDAK akan dimasukkan
+# apabila rakan sekerja muat turun ZIP dari GitHub Release.
+# ============================================================
+
+# Fail pembangunan — tidak diperlukan oleh pengguna akhir
+.gitignore          export-ignore
+.gitattributes      export-ignore
+README.md           export-ignore
+_core/Build_Launcher.ps1   export-ignore
+_core/HBUK_GUI_Launcher.bat export-ignore
+logs/               export-ignore
