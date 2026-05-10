@@ -34,7 +34,8 @@ Write-Host "Menyediakan pakej $releaseName..." -ForegroundColor Cyan
 # Salin fail root
 $rootFiles = @(
     "HBUK_USER_DEPLOYMENT_SUITE_$version.vbs",
-    "HBUK_USER_DEPLOYMENT_SUITE_$version.exe"
+    "HBUK_USER_DEPLOYMENT_SUITE_$version.exe",
+    "PANDUAN_PENGGUNA.txt"
 )
 foreach ($f in $rootFiles) {
     $src = Join-Path $rootDir $f
@@ -75,6 +76,7 @@ if (Test-Path $outZip) {
     Write-Host "============================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "Kandungan ZIP:" -ForegroundColor Yellow
+    Write-Host "  PANDUAN_PENGGUNA.txt                     <- BACA INI DAHULU"
     Write-Host "  HBUK_USER_DEPLOYMENT_SUITE_$version.vbs  <- Klik ini"
     Write-Host "  HBUK_USER_DEPLOYMENT_SUITE_$version.exe  <- Alternatif"
     Write-Host "  _core\  <- Skrip utama"

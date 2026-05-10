@@ -1,0 +1,35 @@
+========================================================================
+PANDUAN PENGGUNAAN: HBUK USER DEPLOYMENT SUITE V4.5
+========================================================================
+
+Sistem ini direka untuk memudahkan kerja-kerja deployment komputer 
+(User Management, RustDesk, SPAI, Theme) di Hospital Bahagia Ulu Kinta.
+
+LANGKAH-LANGKAH PENGGUNAAN:
+------------------------------------------------------------------------
+
+1. EXTRACT (UNZIP) FAIL INI
+   - Klik kanan pada fail ZIP ini dan pilih "Extract All..." (atau gunakan WinRAR/7-Zip).
+   - AMARAN: JANGAN jalankan sistem ini terus dari dalam fail ZIP. Ia akan gagal.
+
+2. SALIN KE PENDRIVE
+   - Salin folder yang baru di-extract ke dalam pemacu kilat (Pendrive) anda.
+   - Bawa pendrive ini ke mana-mana PC/Laptop user yang ingin disiapkan.
+
+3. CARA MENJALANKAN SISTEM
+   - Buka folder di dalam pendrive anda.
+   - Klik DUA KALI pada fail:
+     [ HBUK_USER_DEPLOYMENT_SUITE_V4.5.vbs ] 
+     
+     *Atau anda juga boleh jalankan fail berformat .exe.
+   - Jika sistem meminta kebenaran Administrator (UAC), sila klik "Yes".
+
+4. PANDUAN MENU
+   - Pengurusan Pengguna: Untuk wujudkan / reset akaun lokal (Admin/User).
+   - Pengurusan RustDesk: Akan pasang dan masukkan rahsia Server & Password HBUK secara automatik.
+   - Pengurusan SPAI: Akan pasang GLPI Agent. Anda hanya perlu pilih Cawangan & Unit untuk auto-tag.
+   - Tema / Visual: Akan tetapkan gambar dan palet warna rasmi KKM/HBUK.
+
+------------------------------------------------------------------------
+Dibangunkan oleh: CAPIK | Unit Pengurusan Maklumat (UPM) HBUK
+========================================================================
